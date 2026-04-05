@@ -57,7 +57,7 @@ app = create_app(
 def health_check():
     return {"status": "ok"}
 
-def main(host: str = "0.0.0.0", port: int = 8000):
+def main(host: str = "0.0.0.0", port: int = 8000, argv: list[str] | None = None):
     """
     Entry point for direct execution via uv run or python -m.
 
@@ -74,15 +74,25 @@ def main(host: str = "0.0.0.0", port: int = 8000):
     multiple workers:
         uvicorn my_hackathon_env.server.app:app --workers 4
     """
+    import argparse
     import uvicorn
+
+    # Allow CLI overrides while keeping a simple `main()` call for validators.
+    if argv is None:
+        import sys
+        argv = sys.argv[1:]
+
+    if argv:
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--host", type=str, default=host)
+        parser.add_argument("--port", type=int, default=port)
+        args = parser.parse_args(argv)
+        host = args.host
+        port = args.port
 
     uvicorn.run(app, host=host, port=port)
 
 
 if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--port", type=int, default=8000)
-    args = parser.parse_args()
-    main(port=args.port)
+    # Keep a simple guard so validators that look for main() succeed.
+    main()
