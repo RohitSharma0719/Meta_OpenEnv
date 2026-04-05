@@ -1,0 +1,19 @@
+# Environment variables - NEVER commit this
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+dist/
+build/
+
+# uv
+uv.lock
+
+# Outputs (logs, evaluation results)
+outputs/
+
+# OS
+.DS_Store

@@ -1,0 +1,11 @@
+spec_version: 1
+name: support_triage_env
+description: >
+  A multi-step, business-aware customer support RL environment.
+  An AI agent must resolve support tickets by choosing from a structured
+  action space: extract info, clarify, refund, escalate, or close.
+  Rewards balance correctness against cost and efficiency.
+type: space
+runtime: docker
+
+
