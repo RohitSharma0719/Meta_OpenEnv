@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM ghcr.io/meta-pytorch/openenv-base:latest
 
 WORKDIR /app
 
@@ -10,7 +10,7 @@ COPY . .
 
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir .
+    pip install --no-cache-dir --no-deps .
 
 # HF Spaces injects $PORT; default to 7860 locally.
 EXPOSE 7860
