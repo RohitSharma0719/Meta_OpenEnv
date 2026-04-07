@@ -239,9 +239,13 @@ class SupportTriageEnvironment(Environment):
         return self._state
 
     def _strict_open_unit(self, value: float) -> float:
-        """Clamp to strict open interval (0, 1)."""
-        eps = 1e-3
-        return max(eps, min(1.0 - eps, float(value)))
+        """Clamp to strict open interval (0, 1) — validator requires this on every reward."""
+        import math
+        v = float(value)
+        if not math.isfinite(v):
+            return 0.5
+        eps = 0.01
+        return round(max(eps, min(1.0 - eps, v)), 6)
 
     def _normalize_task_score(self, raw_reward: float, task_id: str) -> float:
         """Map cumulative reward to strict (0, 1) for terminal grading."""
@@ -376,7 +380,16 @@ class SupportTriageEnvironment(Environment):
 
     def _build_obs(self, feedback: str, step_reward: float, done: bool) -> SupportObservation:
         sc = self._scenario
-        reported_reward = self._final_task_score() if done else round(step_reward, 3)
+        if done:
+            # Terminal: map cumulative reward to strict (0, 1)
+            reported_reward = self._final_task_score()
+        else:
+            # Non-terminal: step_reward is a raw penalty/bonus in roughly (-1, 1).
+            # Normalise to (0, 1) so every response satisfies the validator.
+            step_min, step_max = -1.0, 1.0
+            span = step_max - step_min
+            normalised = (step_reward - step_min) / span if span > 0 else 0.5
+            reported_reward = self._strict_open_unit(normalised)
         return SupportObservation(
             ticket_text=sc["ticket_text"],
             customer_tier=sc["customer_tier"],
@@ -406,5 +419,5 @@ class SupportTriageEnvironment(Environment):
             is_terminated=True,
             cumulative_reward=self._cumulative_reward,
             done=True,
-            reward=self._final_task_score(),
+            reward=self._strict_open_unit(self._final_task_score()),
         )
