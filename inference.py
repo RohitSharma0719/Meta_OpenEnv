@@ -218,10 +218,7 @@ async def run_episode(episode_num: int, llm_client: AsyncOpenAI) -> Dict[str, An
 
         print("[END] " + json.dumps({
             "event": "END",
-            "episode": episode_num,
             "task_id": task_id,
-            "total_steps": step,
-            "total_reward": round(obs.get("cumulative_reward", total_reward), 4),
             "final_score": final_score,
             "task_score": final_score,
             "score": final_score,
@@ -257,6 +254,14 @@ async def main():
             print(f"[ERROR] Episode {i} failed: {e}", file=sys.stderr)
             fallback_task_id = f"episode_{i}"
             fs = normalize_score(0.0, fallback_task_id)
+            print("[END] " + json.dumps({
+                "event": "END",
+                "task_id": fallback_task_id,
+                "final_score": fs,
+                "task_score": fs,
+                "score": fs,
+            }))
+            sys.stdout.flush()
             results.append({
                 "task_id": fallback_task_id,
                 "steps": 0,
