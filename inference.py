@@ -98,8 +98,6 @@ def normalize_score(raw_reward: float, task_id: str) -> float:
     if not math.isfinite(normalized):
         normalized = 0.5
 
-    # Use a larger epsilon so JSON serialization (which rounds to ~15 sig figs)
-    # never produces exactly 0.0 or 1.0.
     eps = 0.01
     clamped = max(eps, min(1.0 - eps, normalized))
     return round(clamped, 6)
@@ -273,10 +271,13 @@ async def run_episode(episode_num: int, llm_client: Optional[AsyncOpenAI]) -> Di
             sys.stdout.flush()
 
         raw_score = obs.get("cumulative_reward", total_reward)
-        final_score = strict_unit_score(normalize_score(raw_score, task_id))
+        # final_score = strict_unit_score(normalize_score(raw_score, task_id))
+        final_score = normalize_score(raw_score, task_id)
         # Hard safety net: if for any reason score is still at boundary, nudge it
-        if final_score <= 0.0 or final_score >= 1.0:
-            final_score = 0.5
+        # if final_score <= 0.0 or final_score >= 1.0:
+        #     final_score = 0.5
+        eps = 0.01
+        final_score = max(eps, min(1.0 - eps, final_score))
 
         print("[END] " + json.dumps({
             "event": "END",
