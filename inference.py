@@ -20,6 +20,7 @@ Environment variables (see .env):
 
 import asyncio
 import json
+import math
 import os
 import sys
 import time
@@ -58,24 +59,24 @@ TASK_REWARD_BOUNDS: Dict[str, tuple[float, float]] = {
 SYSTEM_PROMPT = """You are an expert AI customer support agent.
 
 You are operating in a multi-step RL environment. At each turn you receive:
-•⁠  ⁠The customer's original ticket text
-•⁠  ⁠Customer metadata (tier, order value)
-•⁠  ⁠Feedback from your last action
-•⁠  ⁠A history of all your previous actions and their outcomes
+- The customer's original ticket text
+- Customer metadata (tier, order value)
+- Feedback from your last action
+- A history of all your previous actions and their outcomes
 
 You must choose ONE action from the following list and provide an argument:
 
-1.⁠ ⁠extract_info     — Look up a specific hidden field (e.g. "order_status", "refund_eligible", "defect_confirmed")
-2.⁠ ⁠ask_clarification — Ask the customer a follow-up question
-3.⁠ ⁠issue_refund      — Issue a refund. Argument must be a numeric dollar amount (e.g. "89.50")
-4.⁠ ⁠escalate_to_human — Only use as a last resort with a clear reason
-5.⁠ ⁠close_ticket      — Provide a final response to the customer
+1. extract_info     — Look up a specific hidden field (e.g. "order_status", "refund_eligible", "defect_confirmed")
+2. ask_clarification — Ask the customer a follow-up question
+3. issue_refund      — Issue a refund. Argument must be a numeric dollar amount (e.g. "89.50")
+4. escalate_to_human — Only use as a last resort with a clear reason
+5. close_ticket      — Provide a final response to the customer
 
 IMPORTANT RULES:
-•⁠  ⁠Always prefer the most efficient resolution with fewest steps.
-•⁠  ⁠For damaged or defective items, verify eligibility before issuing refunds.
-•⁠  ⁠For high-value orders, extract relevant data fields first.
-•⁠  ⁠close_ticket should include a complete, helpful response to the customer.
+- Always prefer the most efficient resolution with fewest steps.
+- For damaged or defective items, verify eligibility before issuing refunds.
+- For high-value orders, extract relevant data fields first.
+- close_ticket should include a complete, helpful response to the customer.
 
 Respond ONLY with a valid JSON object like this:
 {"action_type": "extract_info", "argument": "order_status"}
@@ -93,8 +94,13 @@ def normalize_score(raw_reward: float, task_id: str) -> float:
     else:
         normalized = (raw_reward - min_reward) / span
 
+    # Guarantee strict in-range score even for edge-case numeric values.
+    if not math.isfinite(normalized):
+        normalized = 0.5
+
     eps = 1e-4
-    return round(max(eps, min(1.0 - eps, normalized)), 4)
+    clamped = max(eps, min(1.0 - eps, normalized))
+    return clamped
 
 
 def build_user_message(obs: Dict[str, Any]) -> str:
@@ -134,8 +140,8 @@ async def call_llm(client: AsyncOpenAI, messages: List[Dict]) -> Dict[str, str]:
     )
     raw = response.choices[0].message.content.strip()
 
-    if raw.startswith("⁠ "):
-        raw = raw.split(" ⁠")[1]
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
         if raw.startswith("json"):
             raw = raw[4:]
 
@@ -217,6 +223,8 @@ async def run_episode(episode_num: int, llm_client: AsyncOpenAI) -> Dict[str, An
             "total_steps": step,
             "total_reward": round(obs.get("cumulative_reward", total_reward), 4),
             "final_score": final_score,
+            "task_score": final_score,
+            "score": final_score,
         }))
         sys.stdout.flush()
 
@@ -225,6 +233,8 @@ async def run_episode(episode_num: int, llm_client: AsyncOpenAI) -> Dict[str, An
             "steps": step,
             "total_reward": round(obs.get("cumulative_reward", total_reward), 4),
             "final_score": final_score,
+            "task_score": final_score,
+            "score": final_score,
         }
 
 
@@ -246,11 +256,14 @@ async def main():
         except Exception as e:
             print(f"[ERROR] Episode {i} failed: {e}", file=sys.stderr)
             fallback_task_id = f"episode_{i}"
+            fs = normalize_score(0.0, fallback_task_id)
             results.append({
                 "task_id": fallback_task_id,
                 "steps": 0,
                 "total_reward": 0.0,
-                "final_score": normalize_score(0.0, fallback_task_id),
+                "final_score": fs,
+                "task_score": fs,
+                "score": fs,
             })
 
     avg_score = round(sum(r["final_score"] for r in results) / len(results), 4) if results else 0.0
@@ -259,5 +272,5 @@ async def main():
         print(f"  {r['task_id']}: steps={r['steps']}, score={r['final_score']}", file=sys.stderr)
 
 
-if _name_ == "_main_":
+if __name__ == "__main__":
     asyncio.run(main())
