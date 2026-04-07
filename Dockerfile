@@ -1,4 +1,4 @@
-FROM python:3.10-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
@@ -8,7 +8,9 @@ ENV PYTHONUNBUFFERED=1 \
 
 COPY . .
 
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir .
 
 # HF Spaces injects $PORT; default to 7860 locally.
 EXPOSE 7860
