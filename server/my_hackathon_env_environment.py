@@ -9,6 +9,7 @@ Rewards balance correctness, cost, and efficiency.
 import random
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
+import math
 
 from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import State
@@ -227,7 +228,7 @@ class SupportTriageEnvironment(Environment):
             "step_reward": round(step_reward, 3),
         })
         self._cumulative_reward += step_reward
-        self._cumulative_reward = round(self._cumulative_reward, 3)
+        # self._cumulative_reward = round(self._cumulative_reward, 3)
 
         if terminal:
             self._done = True
@@ -247,19 +248,36 @@ class SupportTriageEnvironment(Environment):
         eps = 0.01
         return round(max(eps, min(1.0 - eps, v)), 6)
 
+    # def _normalize_task_score(self, raw_reward: float, task_id: str) -> float:
+    #     """Map cumulative reward to strict (0, 1) for terminal grading."""
+    #     min_reward, max_reward = TASK_SCORE_BOUNDS.get(task_id, (-2.0, 1.0))
+    #     span = max_reward - min_reward
+    #     if span <= 0:
+    #         return 0.5
+    #     normalized = (raw_reward - min_reward) / span
+    #     return self._strict_open_unit(normalized)
+    # def _normalize_task_score(self, raw_reward: float, task_id: str) -> float:
+    #     min_reward, max_reward = TASK_SCORE_BOUNDS.get(task_id, (-2.0, 1.0))
+    #     span = max_reward - min_reward
+    #     if span <= 0:
+    #         return 0.5
+    #     normalized = (raw_reward - min_reward) / span
+    #     return normalized
     def _normalize_task_score(self, raw_reward: float, task_id: str) -> float:
-        """Map cumulative reward to strict (0, 1) for terminal grading."""
         min_reward, max_reward = TASK_SCORE_BOUNDS.get(task_id, (-2.0, 1.0))
         span = max_reward - min_reward
         if span <= 0:
             return 0.5
         normalized = (raw_reward - min_reward) / span
-        return self._strict_open_unit(normalized)
+        normalized = max(0.0, min(1.0, normalized))
+        if not math.isfinite(normalized):
+            return 0.5
+        return normalized
 
     def _final_task_score(self) -> float:
-        """Compute terminal score from current cumulative reward."""
         task_id = self._scenario.get("task_id", "")
-        return self._normalize_task_score(self._cumulative_reward, task_id)
+        score = self._normalize_task_score(self._cumulative_reward, task_id)
+        return self._strict_open_unit(score)
 
     def _simulate_customer_reply(self, question: str) -> str:
         """Return a canned clarification reply based on the scenario."""
