@@ -248,21 +248,6 @@ class SupportTriageEnvironment(Environment):
         eps = 0.01
         return round(max(eps, min(1.0 - eps, v)), 6)
 
-    # def _normalize_task_score(self, raw_reward: float, task_id: str) -> float:
-    #     """Map cumulative reward to strict (0, 1) for terminal grading."""
-    #     min_reward, max_reward = TASK_SCORE_BOUNDS.get(task_id, (-2.0, 1.0))
-    #     span = max_reward - min_reward
-    #     if span <= 0:
-    #         return 0.5
-    #     normalized = (raw_reward - min_reward) / span
-    #     return self._strict_open_unit(normalized)
-    # def _normalize_task_score(self, raw_reward: float, task_id: str) -> float:
-    #     min_reward, max_reward = TASK_SCORE_BOUNDS.get(task_id, (-2.0, 1.0))
-    #     span = max_reward - min_reward
-    #     if span <= 0:
-    #         return 0.5
-    #     normalized = (raw_reward - min_reward) / span
-    #     return normalized
     def _normalize_task_score(self, raw_reward: float, task_id: str) -> float:
         min_reward, max_reward = TASK_SCORE_BOUNDS.get(task_id, (-2.0, 1.0))
         span = max_reward - min_reward
@@ -402,8 +387,6 @@ class SupportTriageEnvironment(Environment):
             # Terminal: map cumulative reward to strict (0, 1)
             reported_reward = self._final_task_score()
         else:
-            # Non-terminal: step_reward is a raw penalty/bonus in roughly (-1, 1).
-            # Normalise to (0, 1) so every response satisfies the validator.
             step_min, step_max = -1.0, 1.0
             span = step_max - step_min
             normalised = (step_reward - step_min) / span if span > 0 else 0.5
