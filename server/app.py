@@ -77,7 +77,7 @@ def main(host: str = "0.0.0.0", port: int = 8000, argv: list[str] | None = None)
     import argparse
     import uvicorn
 
-    # Allow CLI overrides while keeping a simple `main()` call for validators.
+    # Allow CLI overrides while keeping a simple ⁠ main() ⁠ call for validators.
     if argv is None:
         import sys
         argv = sys.argv[1:]
@@ -93,6 +93,6 @@ def main(host: str = "0.0.0.0", port: int = 8000, argv: list[str] | None = None)
     uvicorn.run(app, host=host, port=port)
 
 
-if __name__ == "__main__":
+if _name_ == "_main_":
     # Keep a simple guard so validators that look for main() succeed.
     main()
