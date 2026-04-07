@@ -98,17 +98,20 @@ def normalize_score(raw_reward: float, task_id: str) -> float:
     if not math.isfinite(normalized):
         normalized = 0.5
 
-    eps = 1e-3
+    # Use a larger epsilon so JSON serialization (which rounds to ~15 sig figs)
+    # never produces exactly 0.0 or 1.0.
+    eps = 0.01
     clamped = max(eps, min(1.0 - eps, normalized))
-    return clamped
+    return round(clamped, 6)
 
 
 def strict_unit_score(value: float) -> float:
     """Force any numeric value into strict open interval (0, 1)."""
     if not math.isfinite(value):
         return 0.5
-    eps = 1e-3
-    return max(eps, min(1.0 - eps, float(value)))
+    eps = 0.01
+    result = max(eps, min(1.0 - eps, float(value)))
+    return round(result, 6)
 
 
 def build_user_message(obs: Dict[str, Any]) -> str:
@@ -270,8 +273,10 @@ async def run_episode(episode_num: int, llm_client: Optional[AsyncOpenAI]) -> Di
             sys.stdout.flush()
 
         raw_score = obs.get("cumulative_reward", total_reward)
-        # final_score = normalize_score(raw_score, task_id)
         final_score = strict_unit_score(normalize_score(raw_score, task_id))
+        # Hard safety net: if for any reason score is still at boundary, nudge it
+        if final_score <= 0.0 or final_score >= 1.0:
+            final_score = 0.5
 
         print("[END] " + json.dumps({
             "event": "END",
@@ -309,6 +314,8 @@ async def main():
             fallback_task_id = f"episode_{i}"
             # fs = normalize_score(0.0, fallback_task_id)
             fs = strict_unit_score(0.5)
+            if fs <= 0.0 or fs >= 1.0:
+                fs = 0.5
             print("[END] " + json.dumps({
                 "event": "END",
                 "task_id": fallback_task_id,
