@@ -38,7 +38,7 @@ API_BASE_URL = os.environ.get("API_BASE_URL", "https://api.groq.com/openai/v1")
 MODEL_NAME = os.environ.get("MODEL_NAME", "llama-3.3-70b-versatile")
 API_KEY = os.environ.get("LLM_API_KEY") or os.environ.get("HF_TOKEN", "")
 MAX_STEPS = int(os.environ.get("MAX_STEPS", "10"))
-NUM_TASKS = int(os.environ.get("NUM_TASKS", "3"))
+NUM_TASKS = max(1, int(os.environ.get("NUM_TASKS", "3")))
 SERVER_URL = f"http://{os.environ.get('HOST', 'localhost')}:{os.environ.get('PORT', '8000')}"
 
 VALID_ACTIONS = [
@@ -101,6 +101,14 @@ def normalize_score(raw_reward: float, task_id: str) -> float:
     eps = 1e-3
     clamped = max(eps, min(1.0 - eps, normalized))
     return clamped
+
+
+def strict_unit_score(value: float) -> float:
+    """Force any numeric value into strict open interval (0, 1)."""
+    if not math.isfinite(value):
+        return 0.5
+    eps = 1e-3
+    return max(eps, min(1.0 - eps, float(value)))
 
 
 def build_user_message(obs: Dict[str, Any]) -> str:
@@ -263,11 +271,7 @@ async def run_episode(episode_num: int, llm_client: Optional[AsyncOpenAI]) -> Di
 
         raw_score = obs.get("cumulative_reward", total_reward)
         # final_score = normalize_score(raw_score, task_id)
-        final_score = normalize_score(raw_score, task_id)
-        if final_score <= 0.0:
-            final_score = 0.001
-        elif final_score >= 1.0:
-            final_score = 0.999
+        final_score = strict_unit_score(normalize_score(raw_score, task_id))
 
         print("[END] " + json.dumps({
             "event": "END",
@@ -280,8 +284,6 @@ async def run_episode(episode_num: int, llm_client: Optional[AsyncOpenAI]) -> Di
 
         return {
             "task_id": task_id,
-            "steps": step,
-            "total_reward": round(obs.get("cumulative_reward", total_reward), 4),
             "final_score": final_score,
             "task_score": final_score,
             "score": final_score,
@@ -306,7 +308,7 @@ async def main():
             print(f"[ERROR] Episode {i} failed: {e}", file=sys.stderr)
             fallback_task_id = f"episode_{i}"
             # fs = normalize_score(0.0, fallback_task_id)
-            fs=0.5
+            fs = strict_unit_score(0.5)
             print("[END] " + json.dumps({
                 "event": "END",
                 "task_id": fallback_task_id,
@@ -317,17 +319,15 @@ async def main():
             sys.stdout.flush()
             results.append({
                 "task_id": fallback_task_id,
-                "steps": 0,
-                "total_reward": 0.0,
                 "final_score": fs,
                 "task_score": fs,
                 "score": fs,
             })
 
-    avg_score = round(sum(r["final_score"] for r in results) / len(results), 4) if results else 0.0
+    avg_score = strict_unit_score(sum(r["final_score"] for r in results) / len(results)) if results else 0.5
     print(f"\n[SUMMARY] Average final score across {NUM_TASKS} episodes: {avg_score}", file=sys.stderr)
     for r in results:
-        print(f"  {r['task_id']}: steps={r['steps']}, score={r['final_score']}", file=sys.stderr)
+        print(f"  {r['task_id']}: score={r['final_score']}", file=sys.stderr)
 
 
 if __name__ == "__main__":
