@@ -161,13 +161,13 @@ class SupportTriageEnvironment(Environment):
             is_terminated=False,
             cumulative_reward=0.0,
             done=False,
-            reward=0.0,
+            reward=0.5,
         )
 
     def step(self, action: SupportAction) -> SupportObservation:
         """Execute one agent action and return updated observation + reward."""
         if self._done:
-            return self._terminal_obs("Episode already ended.", 0.0)
+            return self._terminal_obs("Episode already ended.", 0.5)
 
         self._state.step_count += 1
         sc = self._scenario
