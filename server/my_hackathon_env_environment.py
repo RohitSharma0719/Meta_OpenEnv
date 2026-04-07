@@ -106,6 +106,13 @@ SCENARIOS: List[Dict[str, Any]] = [
     },
 ]
 
+# Bounds used to convert cumulative trajectory reward to an open-interval score.
+TASK_SCORE_BOUNDS: Dict[str, tuple[float, float]] = {
+    "easy_order_status": (-1.5, 1.0),
+    "medium_damaged_product": (-1.9, 1.0),
+    "hard_refund_conflict": (-2.0, 1.0),
+}
+
 
 class SupportTriageEnvironment(Environment):
     """
@@ -231,6 +238,25 @@ class SupportTriageEnvironment(Environment):
     def state(self) -> State:
         return self._state
 
+    def _strict_open_unit(self, value: float) -> float:
+        """Clamp to strict open interval (0, 1)."""
+        eps = 1e-3
+        return max(eps, min(1.0 - eps, float(value)))
+
+    def _normalize_task_score(self, raw_reward: float, task_id: str) -> float:
+        """Map cumulative reward to strict (0, 1) for terminal grading."""
+        min_reward, max_reward = TASK_SCORE_BOUNDS.get(task_id, (-2.0, 1.0))
+        span = max_reward - min_reward
+        if span <= 0:
+            return 0.5
+        normalized = (raw_reward - min_reward) / span
+        return self._strict_open_unit(normalized)
+
+    def _final_task_score(self) -> float:
+        """Compute terminal score from current cumulative reward."""
+        task_id = self._scenario.get("task_id", "")
+        return self._normalize_task_score(self._cumulative_reward, task_id)
+
     def _simulate_customer_reply(self, question: str) -> str:
         """Return a canned clarification reply based on the scenario."""
         sc = self._scenario
@@ -350,6 +376,7 @@ class SupportTriageEnvironment(Environment):
 
     def _build_obs(self, feedback: str, step_reward: float, done: bool) -> SupportObservation:
         sc = self._scenario
+        reported_reward = self._final_task_score() if done else round(step_reward, 3)
         return SupportObservation(
             ticket_text=sc["ticket_text"],
             customer_tier=sc["customer_tier"],
@@ -362,7 +389,7 @@ class SupportTriageEnvironment(Environment):
             is_terminated=done,
             cumulative_reward=self._cumulative_reward,
             done=done,
-            reward=round(step_reward, 3),
+            reward=reported_reward,
         )
 
     def _terminal_obs(self, feedback: str, reward: float) -> SupportObservation:
@@ -379,5 +406,5 @@ class SupportTriageEnvironment(Environment):
             is_terminated=True,
             cumulative_reward=self._cumulative_reward,
             done=True,
-            reward=reward,
+            reward=self._final_task_score(),
         )
